@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from hair_extractor import AnimeHairExtractor
 from utils import load_image, display_image, save_image
 
-os.environ['OMP_NUM_THREADS'] = '16'
+os.environ['OMP_NUM_THREADS'] = '1'
 
 def main():
     # 创建参数解析器
