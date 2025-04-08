@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from hair_extractor import AnimeHairExtractor
 from utils import load_image, display_image, save_image
 
-os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '16'
 
 def main():
     # 创建参数解析器
@@ -53,17 +53,22 @@ def main():
     if not dominant_colors:
         print("警告: 未能找到足够的头发区域来提取颜色")
     else:
+        # 显示颜色信息
         print(f"找到 {len(dominant_colors)} 种主要颜色:")
         for i, color_info in enumerate(dominant_colors):
             rgb = color_info['rgb']
+            lab = color_info['lab']
             percentage = color_info.get('percentage', '未知')
             pantone_name = color_info.get('pantone_name', '')
-            print(f"颜色 {i+1}: RGB = {rgb}, 占比 = {percentage}%, Pantone = {pantone_name}")
+            print(f"颜色 {i+1}: RGB = {rgb}, LAB = [{lab[0]:.1f}, {lab[1]:.1f}, {lab[2]:.1f}], "
+                  f"占比 = {percentage}%, Pantone = {pantone_name}")
         
         # 主要颜色(占比最大的)
-        main_color = dominant_colors[0]['rgb']
-        main_pantone = dominant_colors[0].get('pantone_name', '')
-        print(f"主要头发颜色: RGB = {main_color}, Pantone = {main_pantone}")
+        main_color = dominant_colors[0]
+        print(f"主要头发颜色: RGB = {main_color['rgb']}, LAB = [{main_color['lab'][0]:.1f}, "
+              f"{main_color['lab'][1]:.1f}, {main_color['lab'][2]:.1f}]")
+        if 'pantone_name' in main_color:
+            print(f"最接近的潘通色卡: {main_color['pantone_name']}")
         
         # 可视化颜色
         extractor.visualize_colors(dominant_colors)
@@ -99,17 +104,20 @@ def main():
         color_txt_path = os.path.join(args.output, f"{base_name}_hair_colors.txt")
         with open(color_txt_path, 'w', encoding='utf-8') as f:
             f.write(f"图像: {args.image_path}\n")
-            f.write(f"主要头发颜色 (RGB): {main_color}\n")
-            if main_pantone:
-                f.write(f"主要头发颜色 (Pantone): {main_pantone}\n")
+            f.write(f"主要头发颜色 (RGB): {main_color['rgb']}\n")
+            f.write(f"主要头发颜色 (LAB): [{main_color['lab'][0]:.1f}, {main_color['lab'][1]:.1f}, {main_color['lab'][2]:.1f}]\n")
+            if 'pantone_name' in main_color:
+                f.write(f"主要头发颜色 (Pantone): {main_color['pantone_name']}\n")
+            
             f.write("\n所有提取的颜色 (按占比排序):\n")
             for i, color_info in enumerate(dominant_colors):
                 rgb = color_info['rgb']
+                lab = color_info['lab']
                 percentage = color_info.get('percentage', '未知')
-                pantone_name = color_info.get('pantone_name', '')
-                f.write(f"颜色 {i+1}: RGB = {rgb}, 占比 = {percentage}%")
-                if pantone_name:
-                    f.write(f", Pantone = {pantone_name}")
+                f.write(f"颜色 {i+1}: RGB = {rgb}, LAB = [{lab[0]:.1f}, {lab[1]:.1f}, {lab[2]:.1f}], "
+                       f"占比 = {percentage}%")
+                if 'pantone_name' in color_info:
+                    f.write(f", Pantone = {color_info['pantone_name']}")
                 f.write("\n")
         
         print(f"颜色文本信息已保存至: {color_txt_path}")

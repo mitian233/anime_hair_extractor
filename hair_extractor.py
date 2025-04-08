@@ -7,7 +7,7 @@ from sklearn.cluster import KMeans
 from skimage import segmentation, morphology, color, feature
 import matplotlib.pyplot as plt
 import mediapipe as mp
-from pantone_colors import find_closest_pantone
+from pantone_colors import find_closest_pantone, rgb_to_lab
 
 class AnimeHairExtractor:
     """
@@ -495,7 +495,7 @@ class AnimeHairExtractor:
 
         return result
     
-    def extract_dominant_color(self, hair_image, mask, k=3, match_pantone=True):
+    def extract_dominant_color(self, hair_image, mask, k=3, match_pantone=True, color_match_method='cie2000'):
         """
         从提取的头发图像中提取主要颜色，并匹配潘通色卡
         
@@ -504,11 +504,12 @@ class AnimeHairExtractor:
             mask: 头发区域掩码
             k: 要提取的颜色数量
             match_pantone: 是否匹配潘通色卡颜色
+            color_match_method: 颜色匹配方法 ('rgb', 'lab', 'cie2000')
             
         Returns:
-            list: 主要颜色列表，每个颜色是一个字典，包含RGB值、占比和潘通匹配结果
+            list: 主要颜色列表，每个颜色是一个字典，包含RGB值、LAB值、占比和潘通匹配结果
         """
-        # 转换为RGB
+        # 转换为RGB和LAB
         rgb_image = cv2.cvtColor(hair_image, cv2.COLOR_BGR2RGB)
         
         # 只选择掩码区域的像素
@@ -537,29 +538,36 @@ class AnimeHairExtractor:
         # 提取排序后的颜色并添加潘通匹配结果
         dominant_colors = []
         for color, count, percentage in colors_with_counts:
+            # 将RGB转换为LAB
+            lab_color = rgb_to_lab(color.tolist())  # 使用从pantone_colors导入的函数
             color_info = {
                 'rgb': color.tolist(),
+                'lab': lab_color.tolist(),
                 'count': int(count),
                 'percentage': float(percentage)
             }
             
             # 匹配潘通色卡
             if match_pantone:
-                pantone_name, pantone_rgb, distance = find_closest_pantone(color.tolist(), method='lab')
+                pantone_name, pantone_rgb, pantone_lab, distance = find_closest_pantone(
+                    color.tolist(), 
+                    method=color_match_method
+                )
                 color_info['pantone_name'] = pantone_name
-                color_info['pantone_rgb'] = pantone_rgb
+                color_info['pantone_rgb'] = pantone_rgb.tolist()
+                color_info['pantone_lab'] = pantone_lab
                 color_info['color_distance'] = float(distance)
             
             dominant_colors.append(color_info)
         
         return dominant_colors
-    
+
     def visualize_colors(self, colors, figsize=(15, 3)):
         """
         可视化颜色列表，并显示潘通色卡匹配结果
         
         Args:
-            colors: 颜色列表，每个颜色是一个字典，包含RGB值和潘通匹配结果
+            colors: 颜色列表，每个颜色是一个字典，包含RGB值、LAB值和潘通匹配结果
             figsize: 图像大小
         """
         if not colors:
@@ -574,6 +582,7 @@ class AnimeHairExtractor:
             plt.subplot(1, n_colors, i+1)
             
             rgb = color_info['rgb']
+            lab = color_info['lab']
             
             # 显示原始颜色
             bar_height = 0.6
@@ -582,14 +591,15 @@ class AnimeHairExtractor:
             # 如果有潘通色卡匹配，显示匹配的潘通颜色
             if 'pantone_rgb' in color_info:
                 pantone_rgb = color_info['pantone_rgb']
+                pantone_lab = color_info['pantone_lab']
                 plt.bar(0, -bar_height, color=[c/255 for c in pantone_rgb], width=0.8, bottom=bar_height)
                 
-                # 添加潘通色卡信息
-                title = f'RGB: {rgb}\n{color_info["pantone_name"]}'
+                # 添加颜色信息
+                title = f'RGB: {rgb}\nLAB: [{lab[0]:.1f}, {lab[1]:.1f}, {lab[2]:.1f}]\n{color_info["pantone_name"]}'
                 if 'percentage' in color_info:
                     title = f'{color_info["percentage"]:.1f}%\n{title}'
             else:
-                title = f'RGB: {rgb}'
+                title = f'RGB: {rgb}\nLAB: [{lab[0]:.1f}, {lab[1]:.1f}, {lab[2]:.1f}]'
                 if 'percentage' in color_info:
                     title = f'{color_info["percentage"]:.1f}%\n{title}'
             
@@ -600,7 +610,7 @@ class AnimeHairExtractor:
         plt.tight_layout()
         plt.show()
     
-    def match_pantone_colors(self, colors, method='lab'):
+    def match_pantone_colors(self, colors, method='cie2000'):
         """
         为提取的颜色匹配潘通色卡
         
