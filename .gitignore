@@ -17,4 +17,6 @@ __pycache__/
 .idea/
 
 data/*
+!data/.gitkeep
 output/*
+!output/.gitkeep
