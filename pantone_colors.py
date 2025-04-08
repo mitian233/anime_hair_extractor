@@ -4,103 +4,52 @@
 import numpy as np
 from skimage import color
 import math
+import csv
+import os
 
-# 潘通色卡颜色数据 [RGB值, 颜色名称]
-PANTONE_COLORS = [
-    # 红色系列
-    [[237, 28, 36], "潘通 Red 032 C"],
-    [[237, 41, 57], "潘通 Warm Red C"],
-    [[218, 37, 29], "潘通 485 C"],
-    [[193, 39, 45], "潘通 1788 C"],
-    [[186, 12, 47], "潘通 200 C"],
-    [[166, 9, 61], "潘通 207 C"],
-    [[220, 88, 42], "潘通 179 C"],
-    [[250, 70, 22], "潘通 Orange 021 C"],
-    [[244, 115, 33], "潘通 1655 C"],
+def load_pantone_colors():
+    """
+    从CSV文件加载潘通颜色数据
     
-    # 橙色系列
-    [[245, 130, 32], "潘通 165 C"],
-    [[249, 157, 28], "潘通 1495 C"],
-    [[249, 176, 0], "潘通 137 C"],
+    Returns:
+        list: 潘通颜色数据列表 [[LAB值, 颜色名称], ...]
+    """
+    colors = []
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    lab_file = os.path.join(current_dir, 'pantone_lab.csv')
     
-    # 黄色系列
-    [[254, 221, 0], "潘通 Yellow C"],
-    [[250, 224, 83], "潘通 100 C"],
-    [[240, 228, 66], "潘通 102 C"],
+    # 读取LAB值
+    lab_data = {}
+    with open(lab_file, 'r', encoding='utf-8-sig') as f:  # 使用 utf-8-sig 来处理 BOM
+        reader = csv.DictReader(f)
+        for row in reader:
+            name = row['pantone_name']  # 现在不需要处理 BOM 了
+            lab_data[name] = [
+                float(row['L']),
+                float(row['A']),
+                float(row['B'])
+            ]
+            # 添加到颜色列表中，添加"潘通"前缀
+            colors.append([lab_data[name], f"潘通 {name}"])
+
+    # 添加动漫常见的特殊发色
+    special_colors = [
+        [[48, 26, -58], "潘通 薰衣草蓝"],
+        [[54, 85, -23], "潘通 品红"],
+        [[46, 77, -77], "潘通 紫罗兰"],
+        [[83, -40, -5], "潘通 青绿"],
+        [[86, 5, 82], "潘通 金色"],
+        [[77, 0, 0], "潘通 银色"],
+        [[54, -3, -7], "潘通 石板灰"],
+        [[66, 15, 12], "潘通 浅玫瑰棕"],
+        [[75, 8, 30], "潘通 棕褐色"]
+    ]
+    colors.extend(special_colors)
     
-    # 绿色系列
-    [[196, 214, 0], "潘通 382 C"],
-    [[141, 198, 63], "潘通 376 C"],
-    [[0, 166, 81], "潘通 Green C"],
-    [[0, 168, 133], "潘通 3278 C"],
-    [[0, 133, 120], "潘通 328 C"],
-    [[0, 115, 152], "潘通 3145 C"],
-    
-    # 蓝色系列
-    [[0, 101, 179], "潘通 3015 C"],
-    [[0, 113, 187], "潘通 Process Blue C"],
-    [[0, 133, 202], "潘通 2925 C"],
-    [[35, 31, 32], "潘通 Reflex Blue C"],
-    [[65, 64, 153], "潘通 2728 C"],
-    [[46, 49, 145], "潘通 286 C"],
-    
-    # 紫色系列
-    [[146, 39, 143], "潘通 Purple C"],
-    [[177, 7, 135], "潘通 241 C"],
-    [[224, 0, 105], "潘通 Rubine Red C"],
-    [[228, 0, 120], "潘通 Rhodamine Red C"],
-    
-    # 粉色系列
-    [[230, 0, 126], "潘通 219 C"],
-    [[235, 156, 197], "潘通 210 C"],
-    [[244, 195, 0], "潘通 Yellow 012 C"],
-    
-    # 褐色系列
-    [[128, 100, 30], "潘通 871 C"],
-    [[143, 86, 64], "潘通 4705 C"],
-    [[83, 40, 43], "潘通 490 C"],
-    
-    # 黑白灰系列
-    [[0, 0, 0], "潘通 Black C"],
-    [[255, 255, 255], "潘通 White"],
-    [[35, 31, 32], "潘通 Black 6 C"],
-    [[128, 130, 133], "潘通 Cool Gray 7 C"],
-    [[167, 168, 170], "潘通 Cool Gray 4 C"],
-    [[237, 237, 237], "潘通 Cool Gray 1 C"],
-    
-    # 动漫常见的特殊发色
-    [[123, 104, 238], "潘通 薰衣草蓝"],
-    [[255, 0, 255], "潘通 品红"],
-    [[138, 43, 226], "潘通 紫罗兰"],
-    [[64, 224, 208], "潘通 青绿"],
-    [[255, 215, 0], "潘通 金色"],
-    [[192, 192, 192], "潘通 银色"],
-    [[112, 128, 144], "潘通 石板灰"],
-    [[188, 143, 143], "潘通 浅玫瑰棕"],
-    [[210, 180, 140], "潘通 棕褐色"],
-    [[245, 222, 179], "潘通 小麦色"],
-    [[255, 228, 225], "潘通 雾玫瑰"],
-    [[255, 192, 203], "潘通 粉红"],
-    [[240, 128, 128], "潘通 淡珊瑚色"],
-    [[250, 128, 114], "潘通 鲑鱼色"],
-    [[255, 20, 147], "潘通 深粉色"],
-    [[199, 21, 133], "潘通 适中的紫红色"],
-    [[153, 50, 204], "潘通 深兰花紫"],
-    [[148, 0, 211], "潘通 深紫色"],
-    [[106, 90, 205], "潘通 石板蓝"],
-    [[72, 61, 139], "潘通 深岩蓝"],
-    [[25, 25, 112], "潘通 午夜蓝"],
-    [[0, 0, 128], "潘通 海军蓝"],
-    [[0, 139, 139], "潘通 深青色"],
-    [[107, 142, 35], "潘通 橄榄土褐色"],
-    [[154, 205, 50], "潘通 黄绿色"],
-    [[85, 107, 47], "潘通 深橄榄绿"],
-    [[128, 128, 0], "潘通 橄榄色"],
-    [[160, 82, 45], "潘通 赭色"],
-    [[165, 42, 42], "潘通 棕色"],
-    [[139, 69, 19], "潘通 马鞍棕色"],
-    [[128, 0, 0], "潘通 栗色"],
-]
+    return colors
+
+# 加载潘通颜色数据
+PANTONE_COLORS = load_pantone_colors()
 
 def rgb_to_lab(rgb_color):
     """
@@ -110,13 +59,33 @@ def rgb_to_lab(rgb_color):
         rgb_color: RGB颜色值 [r, g, b] (0-255)
         
     Returns:
-        ndarray: Lab颜色值
+        ndarray: Lab颜色值 [L, a, b]
     """
     # 归一化RGB值到0-1范围
     rgb_normalized = np.array(rgb_color) / 255.0
+    # 重塑数组为3D形状
+    rgb_reshaped = rgb_normalized.reshape(1, 1, 3)
     # 转换为Lab空间
-    lab_color = color.rgb2lab([[[rgb_normalized]]])
+    lab_color = color.rgb2lab(rgb_reshaped)
+    # 返回一维数组 [L, a, b]
     return lab_color[0, 0]
+
+def lab_to_rgb(lab_color):
+    """
+    将LAB颜色转换为RGB颜色空间
+    
+    Args:
+        lab_color: LAB颜色值 [L, a, b]
+        
+    Returns:
+        ndarray: RGB颜色值 [r, g, b] (0-255)
+    """
+    # 将LAB值转换为形状 (1, 1, 3) 的数组
+    lab_reshaped = np.array([[[lab_color[0], lab_color[1], lab_color[2]]]]) 
+    # 转换为RGB
+    rgb = color.lab2rgb(lab_reshaped)
+    # 转换为0-255范围并返回
+    return (rgb[0, 0] * 255).astype(np.uint8)
 
 def color_distance_rgb(color1, color2):
     """
@@ -164,6 +133,7 @@ def delta_e_cie2000(lab1, lab2):
     kL, kC, kH = 1, 1, 1
     
     # 亮度差异
+    L_bar = (L1 + L2) / 2  # 添加这行
     delta_L_prime = L2 - L1
     
     # 色度计算
@@ -224,34 +194,43 @@ def delta_e_cie2000(lab1, lab2):
     
     return delta_E
 
-def find_closest_pantone(rgb_color, method='lab'):
+def find_closest_pantone(color_value, method='cie2000', input_space='rgb'):
     """
-    找出最接近给定RGB颜色的潘通色卡颜色
+    找出最接近给定颜色的潘通色卡颜色
     
     Args:
-        rgb_color: RGB颜色值 [r, g, b] (0-255)
+        color_value: 颜色值，可以是RGB[r,g,b]或LAB[L,a,b]
         method: 使用的颜色匹配方法 ('rgb', 'lab', 'cie2000')
+        input_space: 输入颜色的颜色空间 ('rgb' or 'lab')
         
     Returns:
-        tuple: (潘通颜色名称, RGB值, 颜色距离)
+        tuple: (潘通颜色名称, RGB值, LAB值, 颜色距离)
     """
     min_distance = float('inf')
     closest_color = None
     closest_name = None
+    closest_lab = None
     
-    for pantone_color, pantone_name in PANTONE_COLORS:
+    # 如果输入是RGB值，转换为LAB
+    if input_space == 'rgb':
+        lab1 = rgb_to_lab(color_value)
+    else:
+        lab1 = color_value
+    
+    for lab_color, pantone_name in PANTONE_COLORS:
         if method == 'rgb':
-            distance = color_distance_rgb(rgb_color, pantone_color)
+            rgb1 = lab_to_rgb(lab1)
+            rgb2 = lab_to_rgb(lab_color)
+            distance = np.sqrt(np.sum((rgb1 - rgb2) ** 2))
         elif method == 'lab':
-            distance = color_distance_lab(rgb_color, pantone_color)
+            distance = np.sqrt(np.sum((np.array(lab1) - np.array(lab_color)) ** 2))
         elif method == 'cie2000':
-            lab1 = rgb_to_lab(rgb_color)
-            lab2 = rgb_to_lab(pantone_color)
-            distance = delta_e_cie2000(lab1, lab2)
+            distance = delta_e_cie2000(lab1, lab_color)
         
         if distance < min_distance:
             min_distance = distance
-            closest_color = pantone_color
+            closest_lab = lab_color
+            closest_color = lab_to_rgb(lab_color)
             closest_name = pantone_name
     
-    return closest_name, closest_color, min_distance
+    return closest_name, closest_color, closest_lab, min_distance
